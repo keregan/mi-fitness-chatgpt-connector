@@ -1,0 +1,13 @@
+{
+  "date": "2026-05-28",
+  "steps": 8700,
+  "sleep_hours": 6.8,
+  "sleep_quality": "medium",
+  "average_heart_rate": 74,
+  "workout": {
+    "type": "strength",
+    "duration_minutes": 30,
+    "intensity": "medium"
+  },
+  "notes": "После болезни нагрузка была снижена"
+}
