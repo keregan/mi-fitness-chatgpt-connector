@@ -52,9 +52,14 @@ import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -114,6 +119,9 @@ class MainActivity : ComponentActivity() {
                     },
                     onCopyJsonClick = {
                         copyLatestJson()
+                    },
+                    onSendJsonClick = {
+                        sendJsonToBackend()
                     }
                 )
             }
@@ -247,13 +255,13 @@ class MainActivity : ComponentActivity() {
                         .put("distanceMeters", distanceMeters ?: JSONObject.NULL)
                     )
                     .put("sleep", JSONObject()
-                        .put("totalMinutes", sleepSummary.totalMinutes)
+                        .put("totalMinutes", sleepSummary.totalMinutes ?: JSONObject.NULL)
                         .put("total", sleepSummary.total)
-                        .put("remMinutes", sleepSummary.fastMinutes)
+                        .put("remMinutes", sleepSummary.fastMinutes ?: JSONObject.NULL)
                         .put("rem", sleepSummary.fast)
-                        .put("deepMinutes", sleepSummary.deepMinutes)
+                        .put("deepMinutes", sleepSummary.deepMinutes ?: JSONObject.NULL)
                         .put("deep", sleepSummary.deep)
-                        .put("lightMinutes", sleepSummary.lightMinutes)
+                        .put("lightMinutes", sleepSummary.lightMinutes ?: JSONObject.NULL)
                         .put("light", sleepSummary.light)
                     )
                     .put("heartRate", JSONObject()
@@ -283,8 +291,7 @@ class MainActivity : ComponentActivity() {
                         distance = distanceMeters?.toString() ?: "нет данных",
                         activeCalories = activeCaloriesKcal?.toString() ?: "нет данных",
                         totalCalories = totalCaloriesKcal?.toString() ?: "нет данных",
-                        workouts = workoutsForScreen,
-                        jsonPreview = latestJson ?: ""
+                        workouts = workoutsForScreen
                     )
                 )
 
@@ -311,6 +318,57 @@ class MainActivity : ComponentActivity() {
         clipboard.setPrimaryClip(clip)
 
         Toast.makeText(this, "JSON скопирован", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun sendJsonToBackend() {
+        val json = latestJson
+
+        if (json.isNullOrBlank()) {
+            Toast.makeText(this, "Сначала прочитай данные", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            try {
+                val responseText = withContext(Dispatchers.IO) {
+                    val url = URL("http://127.0.0.1:8000/sync/today")
+                    val connection = url.openConnection() as HttpURLConnection
+
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    connection.doOutput = true
+
+                    OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
+                        writer.write(json)
+                    }
+
+                    val responseCode = connection.responseCode
+
+                    val responseBody = if (responseCode in 200..299) {
+                        connection.inputStream.bufferedReader().use { it.readText() }
+                    } else {
+                        connection.errorStream?.bufferedReader()?.use { it.readText() }
+                            ?: "Ошибка сервера: $responseCode"
+                    }
+
+                    connection.disconnect()
+                    responseBody
+                }
+
+                Toast.makeText(
+                    this@MainActivity,
+                    "Данные отправлены на сервер",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+            } catch (e: Exception) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Ошибка отправки: ${e.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     private fun buildSleepSummary(records: List<SleepSessionRecord>): SleepSummary {
@@ -385,8 +443,7 @@ data class HealthUiData(
     val distance: String = "—",
     val activeCalories: String = "—",
     val totalCalories: String = "—",
-    val workouts: String = "—",
-    val jsonPreview: String = ""
+    val workouts: String = "—"
 )
 
 data class SleepSummary(
@@ -404,7 +461,8 @@ data class SleepSummary(
 fun HealthScreen(
     data: HealthUiData,
     onReadClick: () -> Unit,
-    onCopyJsonClick: () -> Unit
+    onCopyJsonClick: () -> Unit,
+    onSendJsonClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -476,17 +534,9 @@ fun HealthScreen(
                         CompactRow(label = "Общие", value = "${data.totalCalories} ккал")
                     }
 
-                    CompactSection(title = "ТРЕНИРОВКИ", bottomSpace = 8.dp) {
+                    CompactSection(title = "ТРЕНИРОВКИ", bottomSpace = 0.dp) {
                         Text(
                             text = data.workouts,
-                            fontSize = 13.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
-
-                    CompactSection(title = "JSON", bottomSpace = 0.dp) {
-                        Text(
-                            text = "JSON сформирован и готов к копированию",
                             fontSize = 13.sp,
                             lineHeight = 16.sp
                         )
@@ -496,6 +546,20 @@ fun HealthScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp),
+            onClick = onSendJsonClick
+        ) {
+            Text(
+                text = "Отправить на сервер",
+                fontSize = 14.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         OutlinedButton(
             modifier = Modifier
