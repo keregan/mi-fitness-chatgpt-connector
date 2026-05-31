@@ -1,6 +1,10 @@
 package com.example.mifitnesschatgptconnector
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,6 +53,8 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -66,6 +73,7 @@ class MainActivity : ComponentActivity() {
     )
 
     private var updateData: ((HealthUiData) -> Unit)? = null
+    private var latestJson: String? = null
 
     private val requestPermissions =
         registerForActivityResult(
@@ -103,6 +111,9 @@ class MainActivity : ComponentActivity() {
                     data = uiData,
                     onReadClick = {
                         checkHealthConnectAndPermissions()
+                    },
+                    onCopyJsonClick = {
+                        copyLatestJson()
                     }
                 )
             }
@@ -141,8 +152,9 @@ class MainActivity : ComponentActivity() {
             try {
                 val healthConnectClient = HealthConnectClient.getOrCreate(this@MainActivity)
                 val zoneId = ZoneId.systemDefault()
+                val today = LocalDate.now()
 
-                val startOfDay = LocalDate.now()
+                val startOfDay = today
                     .atStartOfDay(zoneId)
                     .toInstant()
 
@@ -166,24 +178,21 @@ class MainActivity : ComponentActivity() {
 
                 val steps = aggregateResponse[StepsRecord.COUNT_TOTAL] ?: 0L
 
-                val heartRateAvg = aggregateResponse[HeartRateRecord.BPM_AVG]?.toString()
-                val heartRateMin = aggregateResponse[HeartRateRecord.BPM_MIN]?.toString()
-                val heartRateMax = aggregateResponse[HeartRateRecord.BPM_MAX]?.toString()
+                val heartRateAvg = aggregateResponse[HeartRateRecord.BPM_AVG]
+                val heartRateMin = aggregateResponse[HeartRateRecord.BPM_MIN]
+                val heartRateMax = aggregateResponse[HeartRateRecord.BPM_MAX]
 
                 val distanceMeters = aggregateResponse[DistanceRecord.DISTANCE_TOTAL]
                     ?.inMeters
                     ?.toInt()
-                    ?.toString()
 
                 val activeCaloriesKcal = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
                     ?.inKilocalories
                     ?.toInt()
-                    ?.toString()
 
                 val totalCaloriesKcal = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
                     ?.inKilocalories
                     ?.toInt()
-                    ?.toString()
 
                 val sleepResponse = healthConnectClient.readRecords(
                     ReadRecordsRequest(
@@ -201,7 +210,7 @@ class MainActivity : ComponentActivity() {
                     )
                 )
 
-                val workouts = if (exerciseResponse.records.isEmpty()) {
+                val workoutsForScreen = if (exerciseResponse.records.isEmpty()) {
                     "нет данных"
                 } else {
                     exerciseResponse.records.joinToString(separator = "\n") { record ->
@@ -214,6 +223,52 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val workoutsJsonArray = JSONArray()
+                exerciseResponse.records.forEach { record ->
+                    val durationMinutes = Duration.between(
+                        record.startTime,
+                        record.endTime
+                    ).toMinutes()
+
+                    workoutsJsonArray.put(
+                        JSONObject()
+                            .put("type", record.exerciseType)
+                            .put("startTime", record.startTime.toString())
+                            .put("endTime", record.endTime.toString())
+                            .put("durationMinutes", durationMinutes)
+                    )
+                }
+
+                val jsonObject = JSONObject()
+                    .put("date", today.toString())
+                    .put("source", "Health Connect")
+                    .put("activity", JSONObject()
+                        .put("steps", steps)
+                        .put("distanceMeters", distanceMeters ?: JSONObject.NULL)
+                    )
+                    .put("sleep", JSONObject()
+                        .put("totalMinutes", sleepSummary.totalMinutes)
+                        .put("total", sleepSummary.total)
+                        .put("remMinutes", sleepSummary.fastMinutes)
+                        .put("rem", sleepSummary.fast)
+                        .put("deepMinutes", sleepSummary.deepMinutes)
+                        .put("deep", sleepSummary.deep)
+                        .put("lightMinutes", sleepSummary.lightMinutes)
+                        .put("light", sleepSummary.light)
+                    )
+                    .put("heartRate", JSONObject()
+                        .put("average", heartRateAvg ?: JSONObject.NULL)
+                        .put("min", heartRateMin ?: JSONObject.NULL)
+                        .put("max", heartRateMax ?: JSONObject.NULL)
+                    )
+                    .put("calories", JSONObject()
+                        .put("activeKcal", activeCaloriesKcal ?: JSONObject.NULL)
+                        .put("totalKcal", totalCaloriesKcal ?: JSONObject.NULL)
+                    )
+                    .put("workouts", workoutsJsonArray)
+
+                latestJson = jsonObject.toString(2)
+
                 updateData?.invoke(
                     HealthUiData(
                         status = null,
@@ -222,13 +277,14 @@ class MainActivity : ComponentActivity() {
                         sleepFast = sleepSummary.fast,
                         sleepDeep = sleepSummary.deep,
                         sleepLight = sleepSummary.light,
-                        pulseAvg = heartRateAvg ?: "нет данных",
-                        pulseMin = heartRateMin ?: "нет данных",
-                        pulseMax = heartRateMax ?: "нет данных",
-                        distance = distanceMeters ?: "нет данных",
-                        activeCalories = activeCaloriesKcal ?: "нет данных",
-                        totalCalories = totalCaloriesKcal ?: "нет данных",
-                        workouts = workouts
+                        pulseAvg = heartRateAvg?.toString() ?: "нет данных",
+                        pulseMin = heartRateMin?.toString() ?: "нет данных",
+                        pulseMax = heartRateMax?.toString() ?: "нет данных",
+                        distance = distanceMeters?.toString() ?: "нет данных",
+                        activeCalories = activeCaloriesKcal?.toString() ?: "нет данных",
+                        totalCalories = totalCaloriesKcal?.toString() ?: "нет данных",
+                        workouts = workoutsForScreen,
+                        jsonPreview = latestJson ?: ""
                     )
                 )
 
@@ -242,12 +298,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun copyLatestJson() {
+        val json = latestJson
+
+        if (json.isNullOrBlank()) {
+            Toast.makeText(this, "Сначала прочитай данные", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("health_connect_data_json", json)
+        clipboard.setPrimaryClip(clip)
+
+        Toast.makeText(this, "JSON скопирован", Toast.LENGTH_SHORT).show()
+    }
+
     private fun buildSleepSummary(records: List<SleepSessionRecord>): SleepSummary {
         if (records.isEmpty()) {
             return SleepSummary(
+                totalMinutes = null,
                 total = "нет данных",
+                fastMinutes = null,
                 fast = "нет данных",
+                deepMinutes = null,
                 deep = "нет данных",
+                lightMinutes = null,
                 light = "нет данных"
             )
         }
@@ -272,9 +347,13 @@ class MainActivity : ComponentActivity() {
         }
 
         return SleepSummary(
+            totalMinutes = totalMinutes,
             total = formatMinutes(totalMinutes),
+            fastMinutes = remMinutes,
             fast = formatMinutes(remMinutes),
+            deepMinutes = deepMinutes,
             deep = formatMinutes(deepMinutes),
+            lightMinutes = lightMinutes,
             light = formatMinutes(lightMinutes)
         )
     }
@@ -306,20 +385,26 @@ data class HealthUiData(
     val distance: String = "—",
     val activeCalories: String = "—",
     val totalCalories: String = "—",
-    val workouts: String = "—"
+    val workouts: String = "—",
+    val jsonPreview: String = ""
 )
 
 data class SleepSummary(
+    val totalMinutes: Long?,
     val total: String,
+    val fastMinutes: Long?,
     val fast: String,
+    val deepMinutes: Long?,
     val deep: String,
+    val lightMinutes: Long?,
     val light: String
 )
 
 @Composable
 fun HealthScreen(
     data: HealthUiData,
-    onReadClick: () -> Unit
+    onReadClick: () -> Unit,
+    onCopyJsonClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -391,9 +476,17 @@ fun HealthScreen(
                         CompactRow(label = "Общие", value = "${data.totalCalories} ккал")
                     }
 
-                    CompactSection(title = "ТРЕНИРОВКИ", bottomSpace = 0.dp) {
+                    CompactSection(title = "ТРЕНИРОВКИ", bottomSpace = 8.dp) {
                         Text(
                             text = data.workouts,
+                            fontSize = 13.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+
+                    CompactSection(title = "JSON", bottomSpace = 0.dp) {
+                        Text(
+                            text = "JSON сформирован и готов к копированию",
                             fontSize = 13.sp,
                             lineHeight = 16.sp
                         )
@@ -402,17 +495,31 @@ fun HealthScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp),
+            onClick = onCopyJsonClick
+        ) {
+            Text(
+                text = "Скопировать JSON",
+                fontSize = 14.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
 
         Button(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(46.dp),
             onClick = onReadClick
         ) {
             Text(
                 text = "Прочитать данные за сегодня",
-                fontSize = 15.sp
+                fontSize = 14.sp
             )
         }
     }
