@@ -6,9 +6,7 @@ plugins {
 android {
     namespace = "com.example.mifitnesschatgptconnector"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {
@@ -55,4 +53,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation("androidx.health.connect:connect-client:1.2.0-alpha04")
 }
