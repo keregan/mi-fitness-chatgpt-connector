@@ -1,1 +1,19 @@
-pip install -r requirements.txt
+# Python / backend
+venv/
+.env
+__pycache__/
+*.pyc
+
+# Android / Gradle
+.gradle/
+build/
+*/build/
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
