@@ -2,7 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <application
+	<!-- Разрешение Health Connect на чтение шагов -->
+	<uses-permission android:name="android.permission.health.READ_STEPS" />
+
+	<!-- Нужно, чтобы приложение могло найти Health Connect -->
+	<queries>
+		<package android:name="com.google.android.apps.healthdata" />
+	</queries>
+
+	<application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -10,18 +18,48 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.MiFitnessChatGPTConnector">
-        <activity
+        android:theme="@style/Theme.MiFitnessChatGPTConnector"
+        tools:targetApi="31">
+
+		<activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.MiFitnessChatGPTConnector">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+
+		</activity>
+
+		<!-- Экран объяснения, зачем приложению нужны Health Connect-разрешения -->
+		<activity
+            android:name=".PermissionsRationaleActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MiFitnessChatGPTConnector">
+
+			<intent-filter>
+				<action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+			</intent-filter>
+
+		</activity>
+
+		<!-- Нужно для Android 14+ для экрана использования Health Connect-разрешений -->
+		<activity-alias
+            android:name=".ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".PermissionsRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+				<category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+			</intent-filter>
+
+		</activity-alias>
+
+	</application>
 
 </manifest>
