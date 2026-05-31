@@ -6,8 +6,15 @@ import androidx.activity.compose.setContent
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -32,7 +40,13 @@ import java.time.ZoneId
 class MainActivity : ComponentActivity() {
 
     private val permissions = setOf(
-        HealthPermission.getReadPermission(StepsRecord::class)
+        HealthPermission.getReadPermission(StepsRecord::class),
+        HealthPermission.getReadPermission(SleepSessionRecord::class),
+        HealthPermission.getReadPermission(HeartRateRecord::class),
+        HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+        HealthPermission.getReadPermission(DistanceRecord::class),
+        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
     )
 
     private var updateText: ((String) -> Unit)? = null
@@ -42,9 +56,9 @@ class MainActivity : ComponentActivity() {
             PermissionController.createRequestPermissionResultContract()
         ) { grantedPermissions ->
             if (grantedPermissions.containsAll(permissions)) {
-                readTodaySteps()
+                readTodayHealthData()
             } else {
-                updateText?.invoke("Разрешение на чтение шагов не выдано.")
+                updateText?.invoke("Выданы не все разрешения Health Connect. Проверь доступ к шагам, сну, пульсу, тренировкам, дистанции и калориям.")
             }
         }
 
@@ -53,7 +67,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var resultText by remember {
-                mutableStateOf("Нажми кнопку, чтобы прочитать шаги из Health Connect")
+                mutableStateOf("Нажми кнопку, чтобы прочитать данные из Health Connect")
             }
 
             updateText = { newText ->
@@ -76,7 +90,7 @@ class MainActivity : ComponentActivity() {
                             checkHealthConnectAndPermissions()
                         }
                     ) {
-                        Text(text = "Прочитать шаги за сегодня")
+                        Text(text = "Прочитать данные за сегодня")
                     }
                 }
             }
@@ -99,14 +113,14 @@ class MainActivity : ComponentActivity() {
                 .getGrantedPermissions()
 
             if (grantedPermissions.containsAll(permissions)) {
-                readTodaySteps()
+                readTodayHealthData()
             } else {
                 requestPermissions.launch(permissions)
             }
         }
     }
 
-    private fun readTodaySteps() {
+    private fun readTodayHealthData() {
         lifecycleScope.launch {
             try {
                 val healthConnectClient = HealthConnectClient.getOrCreate(this@MainActivity)
@@ -119,25 +133,85 @@ class MainActivity : ComponentActivity() {
 
                 val now = Instant.now()
 
-                val response = healthConnectClient.aggregate(
+                val aggregateResponse = healthConnectClient.aggregate(
                     AggregateRequest(
-                        metrics = setOf(StepsRecord.COUNT_TOTAL),
+                        metrics = setOf(
+                            StepsRecord.COUNT_TOTAL,
+                            SleepSessionRecord.SLEEP_DURATION_TOTAL,
+                            HeartRateRecord.BPM_AVG,
+                            HeartRateRecord.BPM_MIN,
+                            HeartRateRecord.BPM_MAX,
+                            DistanceRecord.DISTANCE_TOTAL,
+                            ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL,
+                            TotalCaloriesBurnedRecord.ENERGY_TOTAL
+                        ),
                         timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
                     )
                 )
 
-                val steps = response[StepsRecord.COUNT_TOTAL] ?: 0L
+                val steps = aggregateResponse[StepsRecord.COUNT_TOTAL] ?: 0L
+
+                val sleepDuration = aggregateResponse[SleepSessionRecord.SLEEP_DURATION_TOTAL]
+                val sleepMinutes = sleepDuration?.toMinutes() ?: 0L
+
+                val heartRateAvg = aggregateResponse[HeartRateRecord.BPM_AVG]
+                val heartRateMin = aggregateResponse[HeartRateRecord.BPM_MIN]
+                val heartRateMax = aggregateResponse[HeartRateRecord.BPM_MAX]
+
+                val distance = aggregateResponse[DistanceRecord.DISTANCE_TOTAL]
+                val distanceMeters = distance?.inMeters?.toInt()
+
+                val activeCalories = aggregateResponse[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]
+                val activeCaloriesKcal = activeCalories?.inKilocalories?.toInt()
+
+                val totalCalories = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
+                val totalCaloriesKcal = totalCalories?.inKilocalories?.toInt()
+
+                val exerciseResponse = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        recordType = ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
+                )
+
+                val workoutsText = if (exerciseResponse.records.isEmpty()) {
+                    "нет данных"
+                } else {
+                    exerciseResponse.records.joinToString(separator = "\n") { record ->
+                        val durationMinutes = Duration.between(
+                            record.startTime,
+                            record.endTime
+                        ).toMinutes()
+
+                        "- тренировка type=${record.exerciseType}, $durationMinutes мин"
+                    }
+                }
 
                 updateText?.invoke(
                     """
-                    Данные из Health Connect:
+                    Данные из Health Connect за сегодня:
                     
-                    Шаги за сегодня: $steps
+                    Шаги: $steps
+                    Сон: $sleepMinutes минут
+                    
+                    Пульс:
+                    Средний: ${heartRateAvg ?: "нет данных"}
+                    Минимальный: ${heartRateMin ?: "нет данных"}
+                    Максимальный: ${heartRateMax ?: "нет данных"}
+                    
+                    Дистанция: ${distanceMeters ?: "нет данных"} м
+                    
+                    Калории:
+                    Активные: ${activeCaloriesKcal ?: "нет данных"} ккал
+                    Общие: ${totalCaloriesKcal ?: "нет данных"} ккал
+                    
+                    Тренировки:
+                    $workoutsText
                     """.trimIndent()
                 )
 
             } catch (e: Exception) {
-                updateText?.invoke("Ошибка чтения шагов: ${e.message}")
+                updateText?.invoke("Ошибка чтения данных: ${e.message}")
             }
         }
     }

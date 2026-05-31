@@ -25,10 +25,10 @@ class PermissionsRationaleActivity : ComponentActivity() {
                         style = MaterialTheme.typography.titleLarge
                     )
 
-                    Text(
-                        modifier = Modifier.padding(top = 16.dp),
-                        text = "Приложение читает количество шагов из Health Connect, чтобы в дальнейшем передавать эти данные в ChatGPT для анализа активности. Данные используются только внутри проекта."
-                    )
+					Text(
+						modifier = Modifier.padding(top = 16.dp),
+						text = "Приложение читает данные из Health Connect: шаги, сон, пульс, тренировки, дистанцию и калории. Эти данные нужны, чтобы в дальнейшем передавать их в ChatGPT для анализа активности, восстановления и общего состояния. Данные используются только внутри проекта."
+					)
                 }
             }
         }
