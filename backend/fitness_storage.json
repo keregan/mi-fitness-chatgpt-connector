@@ -1,0 +1,28 @@
+{
+  "date": "2026-05-31",
+  "source": "Health Connect",
+  "activity": {
+    "steps": 306,
+    "distanceMeters": null
+  },
+  "sleep": {
+    "totalMinutes": 362,
+    "total": "6 ч 2 мин",
+    "remMinutes": 43,
+    "rem": "43 мин",
+    "deepMinutes": 80,
+    "deep": "1 ч 20 мин",
+    "lightMinutes": 239,
+    "light": "3 ч 59 мин"
+  },
+  "heartRate": {
+    "average": null,
+    "min": null,
+    "max": null
+  },
+  "calories": {
+    "activeKcal": 47,
+    "totalKcal": 759
+  },
+  "workouts": []
+}

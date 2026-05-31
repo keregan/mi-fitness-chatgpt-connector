@@ -13,3 +13,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Backend
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Local health data
+backend/fitness_storage.json
+backend/data/
