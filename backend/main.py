@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Any
 import json
+import os
 from pathlib import Path
 
 
@@ -11,7 +12,12 @@ app = FastAPI(
     version="0.1.0"
 )
 
-STORAGE_FILE = Path("fitness_storage.json")
+API_TOKEN = os.getenv("FITNESS_API_TOKEN")
+
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+
+STORAGE_FILE = DATA_DIR / "fitness_storage.json"
 
 
 class ActivityData(BaseModel):
@@ -51,6 +57,20 @@ class FitnessData(BaseModel):
     workouts: List[Any] = []
 
 
+def verify_token(x_fitness_token: Optional[str]):
+    if not API_TOKEN:
+        raise HTTPException(
+            status_code=500,
+            detail="FITNESS_API_TOKEN is not configured on server"
+        )
+
+    if x_fitness_token != API_TOKEN:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing token"
+        )
+
+
 @app.get("/")
 def root():
     return {
@@ -59,7 +79,12 @@ def root():
 
 
 @app.post("/sync/today")
-def sync_today(data: FitnessData):
+def sync_today(
+    data: FitnessData,
+    x_fitness_token: Optional[str] = Header(default=None)
+):
+    verify_token(x_fitness_token)
+
     with STORAGE_FILE.open("w", encoding="utf-8") as file:
         json.dump(data.model_dump(), file, ensure_ascii=False, indent=2)
 
@@ -71,7 +96,11 @@ def sync_today(data: FitnessData):
 
 
 @app.get("/fitness/today")
-def get_today_fitness_data():
+def get_today_fitness_data(
+    x_fitness_token: Optional[str] = Header(default=None)
+):
+    verify_token(x_fitness_token)
+
     if not STORAGE_FILE.exists():
         return {
             "status": "empty",

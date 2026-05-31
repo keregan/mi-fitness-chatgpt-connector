@@ -17,3 +17,11 @@ local.properties
 # OS files
 .DS_Store
 Thumbs.db
+
+# Backend local files
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+backend/data/
+backend/fitness_storage.json
+backend/.env
