@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +60,10 @@ class MainActivity : ComponentActivity() {
             if (grantedPermissions.containsAll(permissions)) {
                 readTodayHealthData()
             } else {
-                updateText?.invoke("Выданы не все разрешения Health Connect. Проверь доступ к шагам, сну, пульсу, тренировкам, дистанции и калориям.")
+                updateText?.invoke(
+                    "Выданы не все разрешения Health Connect.\n\n" +
+                            "Проверь доступ к шагам, сну, пульсу, тренировкам, дистанции и калориям."
+                )
             }
         }
 
@@ -78,14 +83,17 @@ class MainActivity : ComponentActivity() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.Top,
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(text = resultText)
 
                     Button(
-                        modifier = Modifier.padding(top = 24.dp),
+                        modifier = Modifier
+                            .padding(top = 24.dp)
+                            .align(Alignment.CenterHorizontally),
                         onClick = {
                             checkHealthConnectAndPermissions()
                         }
@@ -133,6 +141,47 @@ class MainActivity : ComponentActivity() {
 
                 val now = Instant.now()
 
+                val fourteenDaysAgo = LocalDate.now()
+                    .minusDays(14)
+                    .atStartOfDay(zoneId)
+                    .toInstant()
+
+                val sleepResponse = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        recordType = SleepSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startOfDay, now)
+                    )
+                )
+
+                val sleepDetailsText = if (sleepResponse.records.isEmpty()) {
+                    "нет подробных данных"
+                } else {
+                    sleepResponse.records.joinToString(separator = "\n\n") { sleepRecord ->
+                        val totalMinutes = Duration.between(
+                            sleepRecord.startTime,
+                            sleepRecord.endTime
+                        ).toMinutes()
+
+                        val stagesText = if (sleepRecord.stages.isEmpty()) {
+                            "стадии сна: нет данных"
+                        } else {
+                            sleepRecord.stages.joinToString(separator = "\n") { stage ->
+                                val stageMinutes = Duration.between(
+                                    stage.startTime,
+                                    stage.endTime
+                                ).toMinutes()
+
+                                "- ${sleepStageName(stage.stage)}: $stageMinutes мин"
+                            }
+                        }
+
+                        """
+                        Сон: $totalMinutes мин
+                        $stagesText
+                        """.trimIndent()
+                    }
+                }
+
                 val aggregateResponse = healthConnectClient.aggregate(
                     AggregateRequest(
                         metrics = setOf(
@@ -167,6 +216,29 @@ class MainActivity : ComponentActivity() {
                 val totalCalories = aggregateResponse[TotalCaloriesBurnedRecord.ENERGY_TOTAL]
                 val totalCaloriesKcal = totalCalories?.inKilocalories?.toInt()
 
+                val heartRateRecordsResponse = healthConnectClient.readRecords(
+                    ReadRecordsRequest(
+                        recordType = HeartRateRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(fourteenDaysAgo, now)
+                    )
+                )
+
+                val heartRateSamples = heartRateRecordsResponse.records
+                    .flatMap { record -> record.samples }
+                    .map { sample -> sample.beatsPerMinute }
+
+                val heartRateDebugText = if (heartRateSamples.isEmpty()) {
+                    "Пульс за последние 14 дней: нет данных"
+                } else {
+                    """
+                    Пульс за последние 14 дней:
+                    Количество измерений: ${heartRateSamples.size}
+                    Средний: ${heartRateSamples.average().toInt()}
+                    Минимальный: ${heartRateSamples.minOrNull()}
+                    Максимальный: ${heartRateSamples.maxOrNull()}
+                    """.trimIndent()
+                }
+
                 val exerciseResponse = healthConnectClient.readRecords(
                     ReadRecordsRequest(
                         recordType = ExerciseSessionRecord::class,
@@ -189,23 +261,30 @@ class MainActivity : ComponentActivity() {
 
                 updateText?.invoke(
                     """
-                    Данные из Health Connect за сегодня:
+                    Данные из Health Connect:
                     
-                    Шаги: $steps
-                    Сон: $sleepMinutes минут
+                    Шаги сегодня: $steps
                     
-                    Пульс:
+                    Сон сегодня:
+                    Общее время сна: $sleepMinutes мин
+                    
+                    Подробно:
+                    $sleepDetailsText
+                    
+                    Пульс сегодня:
                     Средний: ${heartRateAvg ?: "нет данных"}
                     Минимальный: ${heartRateMin ?: "нет данных"}
                     Максимальный: ${heartRateMax ?: "нет данных"}
                     
-                    Дистанция: ${distanceMeters ?: "нет данных"} м
+                    $heartRateDebugText
                     
-                    Калории:
+                    Дистанция сегодня: ${distanceMeters ?: "нет данных"} м
+                    
+                    Калории сегодня:
                     Активные: ${activeCaloriesKcal ?: "нет данных"} ккал
                     Общие: ${totalCaloriesKcal ?: "нет данных"} ккал
                     
-                    Тренировки:
+                    Тренировки сегодня:
                     $workoutsText
                     """.trimIndent()
                 )
@@ -213,6 +292,19 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 updateText?.invoke("Ошибка чтения данных: ${e.message}")
             }
+        }
+    }
+
+    private fun sleepStageName(stageType: Int): String {
+        return when (stageType) {
+            SleepSessionRecord.STAGE_TYPE_AWAKE -> "бодрствование"
+            SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED -> "бодрствование в кровати"
+            SleepSessionRecord.STAGE_TYPE_DEEP -> "крепкий сон"
+            SleepSessionRecord.STAGE_TYPE_LIGHT -> "поверхностный сон"
+            SleepSessionRecord.STAGE_TYPE_REM -> "быстрый сон"
+            SleepSessionRecord.STAGE_TYPE_SLEEPING -> "сон без уточнения стадии"
+            SleepSessionRecord.STAGE_TYPE_OUT_OF_BED -> "не в кровати"
+            else -> "неизвестная стадия"
         }
     }
 }
