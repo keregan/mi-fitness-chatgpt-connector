@@ -1,121 +1,154 @@
 # Mi Fitness → ChatGPT Connector
 
-**Mi Fitness → ChatGPT Connector** is a portfolio project that connects fitness data from an Android device to ChatGPT through a custom API.
+**Mi Fitness → ChatGPT Connector** — это учебно-практический IT-проект для связи фитнес-данных с Android-устройства и ChatGPT через собственный API.
 
-The project reads health data from **Health Connect**, sends it from an Android application to a **FastAPI backend**, stores the latest synced data on the server, and exposes it through an API that can be connected to a **ChatGPT Action**.
+Проект получает данные из **Health Connect**, отправляет их из Android-приложения на **FastAPI backend**, сохраняет последние синхронизированные данные на сервере и предоставляет их через API, который можно подключить к **ChatGPT Action**.
 
-The main goal of the project is to make it possible to ask ChatGPT questions about daily activity, sleep, calories, workouts, and recovery based on real data from the user’s device.
-
----
-
-## Project Overview
-
-The current implementation includes:
-
-- Android application written in **Kotlin** and **Jetpack Compose**
-- Integration with **Health Connect**
-- Reading daily health metrics from the device
-- JSON export of health data
-- Sending health data from Android to a backend server
-- FastAPI backend for receiving and serving synced data
-- Docker-based deployment
-- Caddy reverse proxy support
-- Token-based API protection
-- ChatGPT Action integration
+Главная цель проекта — сделать так, чтобы пользователь мог спрашивать ChatGPT о своей активности, сне, калориях, тренировках и восстановлении на основе реальных данных с устройства.
 
 ---
 
-## Architecture
+## Описание проекта
+
+Проект состоит из трёх основных частей:
+
+1. **Android-приложение**  
+   Читает данные из Health Connect и отправляет их на backend.
+
+2. **Backend на FastAPI**  
+   Принимает данные от Android-приложения, сохраняет их и отдаёт по API.
+
+3. **ChatGPT Action**  
+   Позволяет ChatGPT получать актуальные фитнес-данные и анализировать их в диалоге.
+
+---
+
+## Архитектура
 
 ```text
-Mi Fitness / wearable device
+Mi Fitness / фитнес-браслет
         ↓
 Health Connect
         ↓
-Android application
+Android-приложение
         ↓
 POST /sync/today
         ↓
 FastAPI backend
         ↓
-GET /fitness/today or /today
+GET /today
         ↓
 ChatGPT Action
         ↓
-Fitness data analysis in ChatGPT
+Анализ данных в ChatGPT
 ```
 
 ---
 
-## Data Flow
+## Как работает проект
 
-1. Mi Fitness writes supported health data into Health Connect.
-2. The Android application requests Health Connect permissions.
-3. The user reads health data inside the app.
-4. The app formats the data into JSON.
-5. The app sends the JSON to the backend.
-6. The backend stores the latest synced data.
-7. ChatGPT Action requests the latest data from the backend.
-8. ChatGPT analyzes the data and gives a human-readable summary.
+1. Mi Fitness или другое фитнес-приложение передаёт поддерживаемые данные в Health Connect.
+2. Android-приложение запрашивает разрешения Health Connect.
+3. Пользователь нажимает кнопку чтения данных в приложении.
+4. Приложение получает данные за текущий день.
+5. Данные преобразуются в JSON.
+6. Android-приложение отправляет JSON на backend.
+7. Backend сохраняет последнюю синхронизацию.
+8. ChatGPT Action получает данные через API.
+9. ChatGPT анализирует активность, сон, калории, тренировки и восстановление.
 
 ---
 
-## Current Features
+## Реализованный функционал
 
-### Android App
+### Android-приложение
 
-The Android application can currently read and display:
+Android-приложение написано на **Kotlin** с использованием **Jetpack Compose**.
 
-- Steps
-- Sleep duration
-- Sleep stages:
-  - REM / fast sleep
-  - Deep sleep
-  - Light sleep
-- Heart rate data, if available
-- Distance, if available
-- Active calories
-- Total calories
-- Workouts, if available
+На текущем этапе приложение умеет:
 
-The app also supports:
-
-- Compact health data screen
-- JSON generation
-- Copying JSON to clipboard
-- Sending JSON to the backend server
-- API URL and token configuration through `local.properties`
+- подключаться к Health Connect;
+- запрашивать разрешения на чтение данных;
+- читать шаги за день;
+- читать данные сна;
+- отображать стадии сна:
+  - быстрый сон;
+  - крепкий сон;
+  - поверхностный сон;
+- читать пульс, если данные доступны;
+- читать дистанцию, если данные доступны;
+- читать активные калории;
+- читать общие калории;
+- читать тренировки, если данные доступны;
+- формировать JSON с данными;
+- копировать JSON в буфер обмена;
+- отправлять JSON на backend;
+- брать адрес API и токен из `local.properties`.
 
 ---
 
 ### Backend
 
-The backend is built with **FastAPI** and provides:
+Backend написан на **FastAPI**.
 
-- `GET /` — basic health check
-- `POST /sync/today` — receive today’s health data from Android
-- `GET /today` — return the latest synced health data
-- `GET /fitness/today` — alternative route for the latest synced data
+Он предоставляет endpoints:
 
-The backend stores the latest synced data in a local JSON file inside the container volume.
+```text
+GET /
+POST /sync/today
+GET /today
+GET /fitness/today
+```
+
+Назначение endpoints:
+
+```text
+GET /
+```
+
+Проверка, что API работает.
+
+```text
+POST /sync/today
+```
+
+Приём фитнес-данных от Android-приложения.
+
+```text
+GET /today
+```
+
+Получение последних синхронизированных фитнес-данных.
+
+```text
+GET /fitness/today
+```
+
+Альтернативный путь для получения последних данных.
 
 ---
 
-### Security
+## Безопасность
 
-The backend uses a custom API token header:
+Проект работает с личными данными здоровья, поэтому API защищён токеном.
+
+Для доступа используется HTTP-заголовок:
 
 ```text
 x-fitness-token
 ```
 
-Both sync and read endpoints are protected with this token.
+Токен хранится:
 
-Sensitive values are not stored in the repository. The project uses local configuration files and environment variables for secrets.
+- на сервере в `.env`;
+- на Android-устройстве в `local.properties`;
+- в настройках ChatGPT Action.
+
+Токен не должен попадать в GitHub.
 
 ---
 
-## Project Structure
+## Структура проекта
 
 ```text
 mi-fitness-chatgpt-connector/
@@ -125,12 +158,13 @@ mi-fitness-chatgpt-connector/
 │   │   ├── src/
 │   │   └── build.gradle.kts
 │   ├── local.properties
-│   └── ...
+│   └── local.properties.example
 │
 ├── backend/
 │   ├── main.py
 │   ├── Dockerfile
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── .env.example
 │
 ├── docs/
 │   └── openapi.yaml
@@ -141,25 +175,27 @@ mi-fitness-chatgpt-connector/
 
 ---
 
-## Android Setup
+## Настройка Android-приложения
 
-### 1. Open the Android project
+### 1. Открыть проект
 
-Open the following folder in Android Studio:
+В Android Studio нужно открыть папку:
 
 ```text
 android-app/
 ```
 
-### 2. Configure local properties
+---
 
-Create or update:
+### 2. Настроить `local.properties`
+
+Файл находится здесь:
 
 ```text
 android-app/local.properties
 ```
 
-Example:
+Пример содержимого:
 
 ```properties
 sdk.dir=C\:\\Users\\YourUser\\AppData\\Local\\Android\\Sdk
@@ -168,11 +204,13 @@ FITNESS_API_URL=https://your-domain.example/fitness/sync/today
 FITNESS_API_TOKEN=your_secret_token_here
 ```
 
-Do not commit this file to GitHub.
+Важно: настоящий `local.properties` нельзя загружать в GitHub.
 
-### 3. Required Health Connect permissions
+---
 
-The Android app uses the following Health Connect permissions:
+### 3. Разрешения Health Connect
+
+В приложении используются разрешения:
 
 ```xml
 <uses-permission android:name="android.permission.health.READ_STEPS" />
@@ -184,82 +222,90 @@ The Android app uses the following Health Connect permissions:
 <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
 ```
 
-The app also requires internet access:
+Также требуется доступ к интернету:
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-### 4. Run the app
+---
 
-In Android Studio:
+### 4. Запуск приложения
+
+В Android Studio:
 
 ```text
-Run → Select device → Start application
+Run → выбрать устройство → запустить приложение
 ```
 
-Inside the app:
+В приложении:
 
-1. Tap **Read today’s data**
-2. Allow Health Connect permissions
-3. Tap **Send to server**
+1. Нажать **Прочитать данные за сегодня**.
+2. Выдать разрешения Health Connect.
+3. Нажать **Отправить на сервер**.
 
 ---
 
-## Backend Setup
+## Настройка backend локально
 
-### 1. Create virtual environment
+### 1. Создать виртуальное окружение
 
 ```bash
 cd backend
 python -m venv venv
 ```
 
-Activate it on Windows:
+Активация на Windows:
 
 ```bash
 venv\Scripts\activate
 ```
 
-Activate it on Linux/macOS:
+Активация на Linux/macOS:
 
 ```bash
 source venv/bin/activate
 ```
 
-### 2. Install dependencies
+---
+
+### 2. Установить зависимости
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Set API token
+---
 
-On Windows PowerShell:
+### 3. Указать API-токен
+
+Windows PowerShell:
 
 ```powershell
 $env:FITNESS_API_TOKEN="your_secret_token_here"
 ```
 
-On Linux/macOS:
+Linux/macOS:
 
 ```bash
 export FITNESS_API_TOKEN="your_secret_token_here"
 ```
 
-### 4. Run backend locally
+---
+
+### 4. Запустить backend
 
 ```bash
 python -m uvicorn main:app --reload
 ```
 
-Backend will be available at:
+Локальный адрес:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-Swagger documentation:
+Swagger-документация:
 
 ```text
 http://127.0.0.1:8000/docs
@@ -267,9 +313,9 @@ http://127.0.0.1:8000/docs
 
 ---
 
-## Docker Deployment
+## Docker deployment
 
-The backend can be deployed with Docker.
+Backend можно запускать через Docker.
 
 ### Dockerfile
 
@@ -291,7 +337,9 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### docker-compose.yml example
+---
+
+### Пример `docker-compose.yml`
 
 ```yaml
 services:
@@ -320,19 +368,21 @@ volumes:
   fitness_data:
 ```
 
-### .env example
+---
+
+### Пример `.env`
 
 ```env
 FITNESS_API_TOKEN=your_secret_token_here
 ```
 
-Do not commit `.env` to GitHub.
+Файл `.env` нельзя загружать в GitHub.
 
 ---
 
-## Caddy Reverse Proxy Example
+## Пример настройки Caddy
 
-If the backend is deployed behind Caddy and should be available under `/fitness`, an example configuration is:
+Если backend должен быть доступен по пути `/fitness`, можно использовать такую конфигурацию:
 
 ```caddy
 your-domain.example {
@@ -346,7 +396,7 @@ your-domain.example {
 }
 ```
 
-With this setup:
+После такой настройки будут доступны:
 
 ```text
 https://your-domain.example/fitness/today
@@ -354,17 +404,15 @@ https://your-domain.example/fitness/sync/today
 https://your-domain.example/fitness/docs
 ```
 
-will be routed to the fitness backend.
-
 ---
 
-## ChatGPT Action Setup
+## Настройка ChatGPT Action
 
-The project can be connected to a custom GPT through **Actions**.
+Проект можно подключить к пользовательскому GPT через **Actions**.
 
 ### Authentication
 
-Use API Key authentication:
+В настройках Action нужно выбрать:
 
 ```text
 Authentication Type: API Key
@@ -373,16 +421,27 @@ Header name: x-fitness-token
 Value: your_secret_token_here
 ```
 
+Токен вставляется только в настройки Action.  
+В OpenAPI-схему токен вставлять не нужно.
+
+---
+
 ### OpenAPI Schema
 
-Example schema:
+Пример схемы находится в файле:
+
+```text
+docs/openapi.yaml
+```
+
+Минимальная схема:
 
 ```yaml
 openapi: 3.1.0
 
 info:
   title: Mi Fitness ChatGPT Connector API
-  description: API for reading fitness, sleep, heart rate and activity data synced from Android Health Connect.
+  description: API for reading fitness data synced from Android Health Connect.
   version: 0.1.0
 
 servers:
@@ -417,7 +476,7 @@ components:
 
 ---
 
-## Example API Response
+## Пример ответа API
 
 ```json
 {
@@ -455,25 +514,22 @@ components:
 
 ---
 
-## Privacy Notes
+## Конфиденциальность
 
-This project works with personal health-related data.
+Проект работает с персональными фитнес-данными. Поэтому важно:
 
-Recommended precautions:
-
-- Do not commit real health data to GitHub
-- Do not commit `.env`
-- Do not commit `local.properties`
-- Do not hardcode personal domains or tokens in tracked files
-- Use HTTPS for deployed APIs
-- Protect all sensitive endpoints with a token
-- Rotate the token if it was accidentally exposed
+- не загружать реальные данные здоровья в GitHub;
+- не коммитить `.env`;
+- не коммитить `local.properties`;
+- не хранить токены в коде;
+- не хранить личный домен в публичных файлах;
+- использовать HTTPS;
+- защищать endpoints токеном;
+- менять токен, если он случайно был раскрыт.
 
 ---
 
-## Git Ignore Recommendations
-
-Recommended entries:
+## Рекомендуемый `.gitignore`
 
 ```gitignore
 # Android
@@ -499,43 +555,46 @@ Thumbs.db
 
 ---
 
-## Project Status
+## Статус проекта
 
-Current status: **working MVP**
+Текущий статус: **рабочий MVP**.
 
-Implemented:
+Уже реализовано:
 
-- Android Health Connect integration
-- Health data reading
-- JSON export
-- Backend sync endpoint
-- Backend read endpoint
-- Docker deployment
-- Caddy route
-- Token protection
-- ChatGPT Action integration
-
----
-
-## Future Improvements
-
-Planned improvements:
-
-- Store history by date instead of only latest synced data
-- Add weekly and monthly summaries
-- Add charts for activity and sleep
-- Add better workout type mapping
-- Add background sync from Android
-- Add manual date selection
-- Add support for multiple users
-- Improve backend persistence with a database
-- Add automated tests
-- Add CI/CD pipeline
-- Improve GPT Action schema with stricter response models
+- Android-приложение;
+- подключение Health Connect;
+- чтение фитнес-данных;
+- формирование JSON;
+- отправка данных на backend;
+- FastAPI backend;
+- Docker deployment;
+- Caddy reverse proxy;
+- защита через токен;
+- ChatGPT Action;
+- анализ данных через ChatGPT.
 
 ---
 
-## Technologies Used
+## Планы развития
+
+Дальше можно улучшить проект:
+
+- сохранять историю по датам;
+- добавить недельную статистику;
+- добавить месячную статистику;
+- добавить графики активности и сна;
+- улучшить определение типов тренировок;
+- добавить фоновую синхронизацию Android;
+- добавить выбор даты в приложении;
+- добавить поддержку нескольких пользователей;
+- заменить JSON-файл на базу данных;
+- добавить автоматические тесты;
+- добавить CI/CD pipeline;
+- улучшить OpenAPI-схему.
+
+---
+
+## Используемые технологии
 
 - Kotlin
 - Jetpack Compose
@@ -551,7 +610,7 @@ Planned improvements:
 
 ---
 
-## Repository
+## Репозиторий
 
 ```text
 https://github.com/keregan/mi-fitness-chatgpt-connector
