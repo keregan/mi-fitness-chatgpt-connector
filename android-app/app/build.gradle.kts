@@ -1,10 +1,24 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun String.toBuildConfigString(): String {
+    return "\"" + this.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+}
+
 android {
     namespace = "com.example.mifitnesschatgptconnector"
+
     compileSdk {
         version = release(37)
     }
@@ -17,6 +31,19 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val fitnessApiUrl = localProperties.getProperty(
+            "FITNESS_API_URL",
+            ""
+        )
+
+        val fitnessApiToken = localProperties.getProperty(
+            "FITNESS_API_TOKEN",
+            ""
+        )
+
+        buildConfigField("String", "FITNESS_API_URL", fitnessApiUrl.toBuildConfigString())
+        buildConfigField("String", "FITNESS_API_TOKEN", fitnessApiToken.toBuildConfigString())
     }
 
     buildTypes {
@@ -28,12 +55,15 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -46,12 +76,16 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+
+    implementation("androidx.health.connect:connect-client:1.2.0-alpha04")
+
     testImplementation(libs.junit)
+
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
+
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation("androidx.health.connect:connect-client:1.2.0-alpha04")
 }

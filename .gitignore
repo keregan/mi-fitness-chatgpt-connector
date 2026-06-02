@@ -25,3 +25,5 @@ backend/*.pyc
 backend/data/
 backend/fitness_storage.json
 backend/.env
+
+android-app/local.properties
