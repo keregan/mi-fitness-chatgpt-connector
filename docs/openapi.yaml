@@ -1,0 +1,184 @@
+openapi: 3.1.0
+
+info:
+  title: Mi Fitness ChatGPT Connector API
+  description: API for reading fitness, sleep, heart rate and activity data synced from Android Health Connect.
+  version: 0.1.0
+
+servers:
+  - url: https://your-domain.example/fitness
+
+paths:
+  /today:
+    get:
+      operationId: getTodayFitnessData
+      summary: Get today's fitness data
+      description: Returns the latest synced fitness data from Health Connect.
+      security:
+        - fitnessTokenAuth: []
+      responses:
+        "200":
+          description: Latest synced fitness data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FitnessResponse"
+
+components:
+  securitySchemes:
+    fitnessTokenAuth:
+      type: apiKey
+      in: header
+      name: x-fitness-token
+
+  schemas:
+    FitnessResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          $ref: "#/components/schemas/FitnessData"
+
+    FitnessData:
+      type: object
+      additionalProperties: true
+      properties:
+        date:
+          type: string
+          example: "2026-06-02"
+        source:
+          type: string
+          example: "Health Connect"
+        activity:
+          $ref: "#/components/schemas/ActivityData"
+        sleep:
+          $ref: "#/components/schemas/SleepData"
+        heartRate:
+          $ref: "#/components/schemas/HeartRateData"
+        calories:
+          $ref: "#/components/schemas/CaloriesData"
+        workouts:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkoutData"
+
+    ActivityData:
+      type: object
+      additionalProperties: true
+      properties:
+        steps:
+          type: integer
+          example: 6774
+        distanceMeters:
+          type:
+            - integer
+            - "null"
+          example: 4200
+
+    SleepData:
+      type: object
+      additionalProperties: true
+      properties:
+        totalMinutes:
+          type:
+            - integer
+            - "null"
+          example: 362
+        total:
+          type:
+            - string
+            - "null"
+          example: "6 ч 2 мин"
+        remMinutes:
+          type:
+            - integer
+            - "null"
+          example: 43
+        rem:
+          type:
+            - string
+            - "null"
+          example: "43 мин"
+        deepMinutes:
+          type:
+            - integer
+            - "null"
+          example: 80
+        deep:
+          type:
+            - string
+            - "null"
+          example: "1 ч 20 мин"
+        lightMinutes:
+          type:
+            - integer
+            - "null"
+          example: 239
+        light:
+          type:
+            - string
+            - "null"
+          example: "3 ч 59 мин"
+
+    HeartRateData:
+      type: object
+      additionalProperties: true
+      properties:
+        average:
+          type:
+            - integer
+            - "null"
+          example: 72
+        min:
+          type:
+            - integer
+            - "null"
+          example: 55
+        max:
+          type:
+            - integer
+            - "null"
+          example: 135
+
+    CaloriesData:
+      type: object
+      additionalProperties: true
+      properties:
+        activeKcal:
+          type:
+            - integer
+            - "null"
+          example: 47
+        totalKcal:
+          type:
+            - integer
+            - "null"
+          example: 722
+
+    WorkoutData:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type:
+            - integer
+            - "null"
+          example: 79
+        startTime:
+          type:
+            - string
+            - "null"
+          example: "2026-06-02T15:00:00Z"
+        endTime:
+          type:
+            - string
+            - "null"
+          example: "2026-06-02T15:30:00Z"
+        durationMinutes:
+          type:
+            - integer
+            - "null"
+          example: 30

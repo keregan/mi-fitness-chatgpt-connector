@@ -1,0 +1,11 @@
+# Copy this file to local.properties inside android-app/
+# Do not commit the real local.properties file to GitHub.
+
+# Example Windows SDK path:
+# sdk.dir=C\:\\Users\\YourUser\\AppData\\Local\\Android\\Sdk
+
+# Example macOS/Linux SDK path:
+# sdk.dir=/Users/YourUser/Library/Android/sdk
+
+FITNESS_API_URL=https://your-domain.example/fitness/sync/today
+FITNESS_API_TOKEN=your_secret_token_here
