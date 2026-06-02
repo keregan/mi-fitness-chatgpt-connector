@@ -1,6 +1,6 @@
 # Mi Fitness → ChatGPT Connector
 
-**Mi Fitness → ChatGPT Connector** — это учебно-практический IT-проект для связи фитнес-данных с Android-устройства и ChatGPT через собственный API.
+**Mi Fitness → ChatGPT Connector** — это проект для связи фитнес-данных с Android-устройства и ChatGPT через собственный API.
 
 Проект получает данные из **Health Connect**, отправляет их из Android-приложения на **FastAPI backend**, сохраняет последние синхронизированные данные на сервере и предоставляет их через API, который можно подключить к **ChatGPT Action**.
 
