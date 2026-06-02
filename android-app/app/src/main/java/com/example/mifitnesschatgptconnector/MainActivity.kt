@@ -331,11 +331,12 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val responseText = withContext(Dispatchers.IO) {
-                    val url = URL("http://127.0.0.1:8000/sync/today")
+                    val url = URL(BuildConfig.FITNESS_API_URL)
                     val connection = url.openConnection() as HttpURLConnection
 
                     connection.requestMethod = "POST"
                     connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    connection.setRequestProperty("x-fitness-token", BuildConfig.FITNESS_API_TOKEN)
                     connection.doOutput = true
 
                     OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
